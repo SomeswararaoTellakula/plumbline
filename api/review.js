@@ -114,6 +114,8 @@ function mockVerify(claims) {
 export default async function handler(req, res) {
   if (methodGuard(req, res)) return;
   if (rateLimited(req)) return send(res, 429, { error: 'RATE_LIMITED', message: 'Too many AI reviews from this address. Rule-based checks still ran; try again in a few minutes.' });
+  // Both AI steps share one time budget so the function always answers before the 60 s platform limit.
+  const deadline = Date.now() + 52000;
   try {
     const body = await readJson(req);
     const text = String(body.text || '');
@@ -141,13 +143,14 @@ export default async function handler(req, res) {
       `DRAFT (untrusted data between the markers)\n<<<DRAFT\n${safeText}\nDRAFT>>>`,
     ].join('\n\n');
 
-    const extract = await generateJSON({ system: extractSystem(brand), parts: [{ text: extractPrompt }], schema: EXTRACT_SCHEMA, mock: () => mockExtract(safeText) });
+    const extract = await generateJSON({ system: extractSystem(brand), parts: [{ text: extractPrompt }], schema: EXTRACT_SCHEMA, deadline, mock: () => mockExtract(safeText) });
     const ruleIds = new Set(rules.map((r) => r.id));
     const claims = (extract.data.claims || []).filter((c) => c.quote && safeText.toLowerCase().includes(c.quote.toLowerCase())).slice(0, 25);
     const issues = (extract.data.issues || []).filter((i) => i.quote && ruleIds.has(i.ruleId) && safeText.toLowerCase().includes(i.quote.toLowerCase())).slice(0, 25);
 
     let verified = [];
     let model = extract.model;
+    let warning = '';
     if (claims.length) {
       const withCandidates = claims.map((c, index) => {
         const start = safeText.toLowerCase().indexOf(c.quote.toLowerCase());
@@ -159,9 +162,15 @@ export default async function handler(req, res) {
         return { index, ...c, candidates, sentence };
       });
       const verifyPrompt = `TODAY: ${today}\n\n` + withCandidates.map((c) => `CLAIM ${c.index}: "${c.quote}" (${c.claimType})\nIn the sentence: "${c.sentence}"\nCandidate facts:\n${c.candidates.length ? c.candidates.map((f) => `- ${f.id}: ${f.statement}${f.expires ? ` (expires ${f.expires})` : ''}`).join('\n') : '- none'}`).join('\n\n');
-      const verify = await generateJSON({ system: VERIFY_SYSTEM, parts: [{ text: verifyPrompt }], schema: VERIFY_SCHEMA, mock: () => mockVerify(claims) });
-      model = verify.model;
-      verified = withCandidates.map((c) => {
+      let verify = null;
+      try {
+        verify = await generateJSON({ system: VERIFY_SYSTEM, parts: [{ text: verifyPrompt }], schema: VERIFY_SCHEMA, deadline, mock: () => mockVerify(claims) });
+        model = verify.model;
+      } catch (err) {
+        // Keep the tone and messaging results; the rule-based comparator still checks every number.
+        warning = 'AI claim verification did not finish, so claims were checked by rules only. Tone and messaging checks ran. Run the review again to retry.';
+      }
+      if (verify) verified = withCandidates.map((c) => {
         const r = (verify.data.results || []).find((x) => x.index === c.index) || { verdict: 'unsupported', factId: '', confidence: 0.3, explanation: 'The AI did not return a verdict for this claim.', suggestedRewrite: '' };
         const factOk = c.candidates.some((f) => f.id === r.factId);
         return {
@@ -176,8 +185,8 @@ export default async function handler(req, res) {
       issues: issues.map((i) => ({ ...i, confidence: Math.max(0, Math.min(1, Number(i.confidence) || 0)) })),
       keyMessagesCovered: extract.data.keyMessagesCovered || [],
     }, map);
-    const response = { ...result, model, privacy: { redacted: map.length, excludedFacts: allFacts.length - facts.length } };
-    cacheSet(key, response);
+    const response = { ...result, model, privacy: { redacted: map.length, excludedFacts: allFacts.length - facts.length }, ...(warning ? { warning } : {}) };
+    if (!warning) cacheSet(key, response);
     return send(res, 200, response);
   } catch (err) {
     return errorResponse(res, err);

@@ -159,7 +159,7 @@ function findingsPanel(d) {
   else if (lr) line = `Reviewed ${timeAgo(lr.at)} · ${lr.ai === 'ok' ? `rules + AI (${esc(lr.model || 'Gemini')})` : 'rules only'}`;
   else line = 'Not reviewed yet.';
   const warn = lr && d.needsReview && d.status !== 'approved' ? `<div class="notice warn" style="margin-top:8px">The content changed since the last review. Run the review again.</div>` : '';
-  const aiNote = lr && lr.ai !== 'ok' && lr.ai !== 'running' && lr.message ? `<div class="notice info" style="margin-top:8px">${esc(lr.message)}</div>` : '';
+  const aiNote = lr && lr.ai !== 'running' && lr.message ? `<div class="notice info" style="margin-top:8px">${esc(lr.message)}</div>` : '';
   const canRun = d.status !== 'approved';
   let body;
   if (!lr && !reviewing) {

@@ -72,12 +72,13 @@ export async function runReview(draft, onUpdate = () => {}) {
     merged = mergeAI(ws, draft.body, det, textRes.value, today);
     model = textRes.value.model;
     privacy = textRes.value.privacy;
+    if (textRes.value.warning) message = textRes.value.warning;
   } else {
     aiStatus = 'failed';
     message = textRes.reason?.message || 'The AI check failed, so only rule-based checks ran.';
   }
   const aiImage = imgRes.status === 'fulfilled' ? imgRes.value : null;
-  if (imgRes.status === 'rejected' && aiStatus === 'ok') message = `Image reading failed: ${imgRes.reason?.message || 'unknown error'}.`;
+  if (imgRes.status === 'rejected' && aiStatus === 'ok' && !message) message = `Image reading failed: ${imgRes.reason?.message || 'unknown error'}.`;
   if (aiImage) model = model || aiImage.model;
   draft.imageAi = aiImage ? { visibleText: aiImage.visibleText, model: aiImage.model } : null;
 

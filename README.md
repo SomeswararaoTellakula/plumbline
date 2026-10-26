@@ -4,7 +4,7 @@
 
 Built for **Codex 48 (We Code Coders) · Inkloom AI problem statement · Round 2: The Build** by Tellakula Someswararao (solo).
 
-- **Live demo:** _add the Vercel URL here_
+- **Live demo:** https://plumbline-plum.vercel.app
 - **No sign-in.** Every visitor gets their own copy of a demo workspace for **NimbuPay**, a fictional UPI payments brand.
 
 ---
@@ -51,6 +51,7 @@ Other drafts to try:
 - **A fix validator** rejects any AI rewrite that introduces a number, ranking or banned term that is not in the original text or the cited fact. Rejected rewrites are shown with the reason, not offered as fixes.
 - **Every AI-produced finding is labelled** "AI-assisted", with the model and its confidence.
 - **Privacy gateway.** Confidential terms, emails, phone numbers and UPI IDs are replaced with placeholders before the AI call and restored afterwards. Facts marked confidential are never sent.
+- **Resilient AI calls.** If a model is overloaded, rate-limited or slow, the request falls through to the next model (Gemini 2.5 Flash → 2.5 Flash-Lite → Flash latest) within one shared time budget, and a model that just failed is tried last for a while. If claim verification does not finish, tone and messaging results are still returned and the page says so.
 - **Prompt-injection defence.** Draft text is passed as delimited data with an instruction to ignore embedded instructions. Output must match a JSON schema, and quotes that do not exist in the draft are discarded.
 
 ## Workflow
@@ -95,12 +96,12 @@ python3 tests/e2e_more.py http://localhost:3000
 ## Deploy (Vercel)
 
 1. Import this repository in Vercel. Use framework preset **Other**, with no build command and no output directory.
-2. Add the environment variable `GEMINI_API_KEY` (optionally `GEMINI_MODEL`; the default is `gemini-flash-latest`, falling back to `gemini-2.5-flash`).
+2. Add the environment variable `GEMINI_API_KEY` (optionally `GEMINI_MODEL`; the default is `gemini-2.5-flash`, falling back to `gemini-2.5-flash-lite` and `gemini-flash-latest`).
 3. Deploy. If the key is missing or the AI is down, the app still works with rule-based checks and says so.
 
 ## Testing
 
-- **Unit tests** (`tests/engine.test.js`, 11 tests) cover:
+- **Unit tests** (16 in total). `tests/engine.test.js` (11 tests) covers:
   - number parsing (Indian formats, units, qualifiers);
   - comparator qualifiers;
   - the planted problems in each demo draft;
@@ -109,6 +110,8 @@ python3 tests/e2e_more.py http://localhost:3000
   - AI merging (the comparator wins, bad rewrites are rejected);
   - image findings;
   - colour maths and diffs.
+
+  `tests/gemini.test.js` (5 tests) replaces the network with a fake and covers an overloaded model falling through to the next, rate limits on every model, a hanging model abandoned in time, the shared deadline, and partial results when claim verification fails.
 - **End-to-end** (`tests/e2e_smoke.py`, Playwright) covers the full journey:
   - queue → open draft → run review (rules + AI) → validator rejection shown → accept fixes → dismiss with reason → Brand Manager override;
   - submit → switch to Reviewer → approve → version history, activity and Brand Kit pages.
@@ -119,6 +122,15 @@ python3 tests/e2e_more.py http://localhost:3000
   - request changes → creator edits → submit is blocked until a fresh review → approve;
   - the workspace surviving a page reload.
 - **Also checked in the browser:** rule-only mode with no API key (the app says so and still works), and a phone-width layout (390 px).
+
+## Known limitations
+
+- The workspace is saved in the visitor's browser, so two people do not see each other's changes. **Reset demo** restores the starting state.
+- Roles are a switcher, not real accounts.
+- Text and images only: DOCX and PDF review, brand-guide PDF upload and logo checks are planned for Round 3. Brand-guide import works from pasted text.
+- AI checks depend on Gemini's free tier. Under heavy load the page may say the AI is busy; rule checks still run, and a retry a minute later works. Each address gets 30 AI reviews per 10 minutes.
+- The AI can over-flag. In D-103, "Your electricity bill is due today" may be flagged as pressure; it can be dismissed with a reason.
+- Image contrast and palette figures are estimates on photos with busy backgrounds.
 
 ## Changes from the Round 1 plan
 
