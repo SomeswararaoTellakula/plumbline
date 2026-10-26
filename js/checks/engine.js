@@ -73,7 +73,10 @@ export function runTextChecks(ws, text) {
         const whole = clauseStart < 0;
         out.push(finding(ws, { ruleId: t.ruleId, title: 'Names a competitor', quote, start: qs, end: qe, reason: `Mentions "${m[0]}". Brand guidelines say to talk about what ${ws.brand.name} does well, not about other apps.`, fix: whole ? null : { replacement: '', note: 'Removes the comparison and keeps the rest of the sentence.' } }));
       } else if (t.kind === 'banned') {
-        out.push(finding(ws, { ruleId: t.ruleId, title: `Banned phrase: "${t.term}"`, quote: m[0], start: m.index, end: m.index + m[0].length, reason: `"${m[0]}" is on the banned list (${t.id}).`, fix: t.replacement ? { replacement: t.replacement, note: 'Approved alternative from the terminology list.' } : null }));
+        let bs = m.index;
+        const art = text.slice(Math.max(0, m.index - 4), m.index).match(/\b(a|an|the)\s+$/i);
+        if (art && /^(a|an|the)\s/i.test(t.replacement || '')) bs = m.index - art[0].length;
+        out.push(finding(ws, { ruleId: t.ruleId, title: `Banned phrase: "${t.term}"`, quote: text.slice(bs, m.index + m[0].length), start: bs, end: m.index + m[0].length, reason: `"${m[0]}" is on the banned list (${t.id}).`, fix: t.replacement ? { replacement: t.replacement, note: 'Approved alternative from the terminology list.' } : null }));
       } else {
         out.push(finding(ws, { ruleId: t.ruleId, title: `Use "${t.replacement}"`, quote: m[0], start: m.index, end: m.index + m[0].length, reason: `The approved term is "${t.replacement}" (${t.id}).`, fix: { replacement: t.replacement, note: 'Preferred product term.' } }));
       }
@@ -103,12 +106,8 @@ export function runTextChecks(ws, text) {
   // LEG-01 offers need T&C
   if (active(ws, 'LEG-01') && /\b(cashback|discount|offer|coupon|% off)\b/i.test(text) && !/T&Cs?|terms (and|&) conditions/i.test(text)) {
     const s = sentences(text).find((x) => /\b(cashback|discount|offer|coupon|% off)\b/i.test(x.text));
-    // Anchor the fix on the last word of the content so it never overlaps other findings.
-    const tail = text.trimEnd().match(/\S+$/);
-    if (s && tail) {
-      const start = tail.index, end = tail.index + tail[0].length;
-      out.push(finding(ws, { ruleId: 'LEG-01', title: 'Offer without "T&C apply"', quote: tail[0], start, end, reason: `"${s.text.length > 70 ? s.text.slice(0, 67) + '…' : s.text}" describes an offer, but the content never says "T&C apply".`, fix: { replacement: `${tail[0]} T&C apply.`, note: 'Adds the required disclaimer at the end.' } }));
-    }
+    // Content-level finding: the fix appends the disclaimer, so later edits cannot strand it.
+    if (s) out.push(finding(ws, { ruleId: 'LEG-01', title: 'Offer without "T&C apply"', quote: null, start: null, end: null, reason: `"${s.text.length > 80 ? s.text.slice(0, 77) + '…' : s.text}" describes an offer, but the content never says "T&C apply".`, fix: { replacement: 'T&C apply.', note: 'Adds the required disclaimer at the end of the content.', kind: 'append' } }));
   }
   // TON-01 hype mechanics
   if (active(ws, 'TON-01')) {

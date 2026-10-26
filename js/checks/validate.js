@@ -1,6 +1,6 @@
 // The fix validator: a suggested rewrite may only use numbers that already appear in the
 // original sentence or in the fact it cites, and may not add new superlatives or banned terms.
-import { parseQuantities } from '../lib/text.js';
+import { parseQuantities, formatQuantity } from '../lib/text.js';
 import { SUPERLATIVE_RE } from './claims.js';
 
 function values(text) {
@@ -10,9 +10,10 @@ function values(text) {
 export function validateFix({ replacement, original, sentence, fact, terms = [] }) {
   if (replacement == null) return { ok: false, reason: 'No rewrite was suggested.' };
   const allowed = new Set([...values(original), ...values(sentence), ...values(fact?.statement), ...(fact?.quantity ? [fact.quantity.value] : [])]);
-  for (const v of values(replacement)) {
+  for (const q of parseQuantities(replacement || '')) {
+    const v = q.value;
     const found = [...allowed].some((a) => Math.abs(a - v) <= Math.max(Math.abs(a) * 0.001, 1e-9));
-    if (!found) return { ok: false, reason: `The rewrite introduced a number (${v.toLocaleString('en-IN')}) that is not in the original text or the cited fact.` };
+    if (!found) return { ok: false, reason: `The rewrite introduced a number (${formatQuantity(v, q.unitType)}) that is not in the original text or the cited fact.` };
   }
   const sup = (s) => new Set((String(s).match(SUPERLATIVE_RE) || []).map((w) => w.toLowerCase()));
   const before = sup(`${original} ${sentence}`);

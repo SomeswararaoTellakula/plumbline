@@ -79,7 +79,7 @@ export function seedWorkspace(now = new Date()) {
   const drafts = [
     {
       id: 'D-101', title: 'Diwali cashback: Instagram post', channel: 'Instagram', author: 'Priya', status: 'draft', createdAt: iso(1, 3), updatedAt: iso(0, 5),
-      body: "Nimbupay is India's fastest UPI app, trusted by 5 million users across the country!!! This Diwali, get guaranteed ₹200 cashback on your first UPI payment, way better than PhonePe. Pay your bills, split dinners and send money home in seconds. It's a total no-brainer, so download now before the offer ends!",
+      body: "Nimbupay is India's fastest UPI app, trusted by 5 million users across the country!!! This Diwali, get guaranteed ₹200 cashback on your first UPI payment, way better than PhonePe. Pay your bills, split dinners and send money home in seconds. It's a no-brainer, so download now before the offer ends!",
       image: { src: 'assets/diwali-banner.png', name: 'diwali-banner.png', alt: '' },
     },
     {

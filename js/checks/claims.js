@@ -5,6 +5,12 @@ import { retrieveFacts } from '../lib/retrieval.js';
 
 export const SUPERLATIVE_RE = /\b(?:india['’]s\s+)?(?:fastest|best|cheapest|largest|biggest|safest|most\s+(?:trusted|secure|popular|loved|reliable)|no\.?\s?1|number\s+one|#1|leading|unbeatable|first-ever|world-class)\b/gi;
 
+export function fmtDay(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${d} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1]} ${y}`;
+}
+
 export function isExpired(fact, today) {
   return Boolean(fact && fact.expires && fact.expires < today);
 }
@@ -108,9 +114,9 @@ export function groundClaim(claim, facts, today) {
     const ok = compareQuantity(q, fact.quantity);
     const expired = isExpired(fact, today);
     if (ok && !expired) return { verdict: 'supported', fact, candidates, decidedBy: 'comparator', reason: `Matches ${fact.id}: ${fact.statement}`, fix: null };
-    if (ok && expired) return { verdict: 'outdated', fact, candidates, decidedBy: 'comparator', reason: `Matches ${fact.id}, but that fact expired on ${fact.expires}. The ${fact.owner} must confirm a current figure before this is published.`, fix: null };
+    if (ok && expired) return { verdict: 'outdated', fact, candidates, decidedBy: 'comparator', reason: `Matches ${fact.id}, but that fact expired on ${fmtDay(fact.expires)}. The ${fact.owner} must confirm a current figure before this is published.`, fix: null };
     const fixed = rewriteQuantity(claim, fact);
-    return { verdict: 'contradicted', fact, candidates, decidedBy: 'comparator', reason: `Says ${q.raw}${qualifierWord(q.qualifier)}, but ${fact.id} says ${fact.display} (${fact.statement})${expired ? ` That fact has also expired (${fact.expires}).` : ''}`, fix: fixed ? { replacement: fixed, note: `Uses the approved figure from ${fact.id}.` } : null };
+    return { verdict: 'contradicted', fact, candidates, decidedBy: 'comparator', reason: `Says ${q.raw}${qualifierWord(q.qualifier)}, but ${fact.id} says ${fact.display} (${fact.statement})${expired ? ` That fact has also expired (${fmtDay(fact.expires)}).` : ''}`, fix: fixed ? { replacement: fixed, note: `Uses the approved figure from ${fact.id}.` } : null };
   }
   // Rankings need a fact that literally supports the ranking word.
   const word = claim.word.toLowerCase().replace(/^india['’]s\s+/, '');
