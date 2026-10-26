@@ -250,6 +250,8 @@ function findingCard(d, f) {
 function renderDiff(a, b) {
   if (b === '') return `<del>${esc(a)}</del> <span class="muted small">(removed)</span>`;
   const parts = diffWords(a, b);
+  const same = parts.filter((p) => p.type === 'eq').reduce((n, p) => n + p.text.trim().length, 0);
+  if (same < 0.5 * Math.max(a.length, b.length) && parts.length > 3) return `<del>${esc(a)}</del><br><ins>${esc(b)}</ins>`;
   return parts.map((p, i) => (p.type === 'eq' ? esc(p.text) : p.type === 'del' ? `<del>${esc(p.text)}</del>${parts[i + 1]?.type === 'ins' ? ' ' : ''}` : `<ins>${esc(p.text)}</ins>`)).join('');
 }
 

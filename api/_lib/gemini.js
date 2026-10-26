@@ -17,7 +17,7 @@ export function aiConfigured() {
 }
 
 export function modelCandidates() {
-  return [...new Set([process.env.GEMINI_MODEL, 'gemini-flash-latest', 'gemini-2.5-flash'].filter(Boolean))];
+  return [...new Set([process.env.GEMINI_MODEL, 'gemini-2.5-flash', 'gemini-flash-latest'].filter(Boolean))];
 }
 
 /**
@@ -42,7 +42,7 @@ export async function generateJSON({ system, parts, schema, temperature = 0.2, t
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: system }] },
             contents: [{ role: 'user', parts }],
-            generationConfig: { temperature, responseMimeType: 'application/json', responseSchema: schema },
+            generationConfig: { temperature, responseMimeType: 'application/json', responseSchema: schema, ...(/2\.5-flash/.test(model) ? { thinkingConfig: { thinkingBudget: 0 } } : {}) },
           }),
         });
       } catch (e) {

@@ -189,6 +189,18 @@ export function mergeAI(ws, text, det, ai, today) {
   const supported = [...det.supported];
   const model = ai?.model || 'AI';
   const factById = (id) => ws.facts.find((f) => f.id === id) || null;
+  // A rewrite may use numbers from the fact it cites; if the AI cited none (or the wrong one),
+  // try the facts retrieved for this claim and record the one that actually supports the rewrite.
+  const checkRewrite = (replacement, original, sentence, ids) => {
+    const tried = [...new Set(ids.filter(Boolean))].map(factById).filter((f) => f && !f.confidential);
+    let first = null;
+    for (const f of tried.length ? tried : [null]) {
+      const v = validateFix({ replacement, original, sentence, fact: f, terms: ws.terms });
+      if (v.ok) return { ok: true, fact: f };
+      first = first || v;
+    }
+    return { ok: false, reason: first.reason, fact: null };
+  };
 
   for (const c of ai?.claims || []) {
     const loc = locate(text, c.quote);
@@ -214,10 +226,11 @@ export function mergeAI(ws, text, det, ai, today) {
       if (c.suggestedRewrite && c.suggestedRewrite !== c.quote) {
         const target = text.slice(existing.start, existing.end);
         const rewriteSpanMatches = locate(target, c.quote) || c.quote.includes(target);
-        const v = validateFix({ replacement: c.suggestedRewrite, original: c.quote, sentence, fact: fact || factById(existing.factId), terms: ws.terms });
+        const v = checkRewrite(c.suggestedRewrite, c.quote, sentence, [c.factId, existing.factId, ...(c.candidates || []), ...(existing.candidates || [])]);
         if (v.ok && rewriteSpanMatches) {
           existing.quote = c.quote; existing.start = loc.start; existing.end = loc.end;
-          existing.fix = { replacement: c.suggestedRewrite, note: `AI-suggested rewrite, checked by the validator${fact ? ` against ${fact.id}` : ''}.`, ai: true };
+          if (v.fact && existing.decidedBy !== 'comparator') existing.factId = v.fact.id;
+          existing.fix = { replacement: c.suggestedRewrite, note: `AI-suggested rewrite, checked by the validator${v.fact ? ` against ${v.fact.id}` : ''}.`, ai: true };
         } else if (!v.ok) existing.rejectedFix = { replacement: c.suggestedRewrite, reason: v.reason };
       }
       continue;
@@ -228,17 +241,18 @@ export function mergeAI(ws, text, det, ai, today) {
     if (fact && isExpired(fact, today) && verdict === 'supported') verdict = 'outdated';
     const ruleId = VERDICT_RULE[verdict] || (c.claimType === 'ranking' ? 'CLM-02' : 'CLM-01');
     if (!active(ws, ruleId)) continue;
-    const severity = verdict === 'contradicted' ? 'blocker' : verdict === 'needs-check' ? 'medium' : 'high';
+    const implied = ['implied', 'feature'].includes(c.claimType);
+    const severity = verdict === 'contradicted' ? 'blocker' : verdict === 'needs-check' || (implied && verdict === 'unsupported') ? 'medium' : 'high';
     const titles = { contradicted: 'Contradicts the fact ledger', outdated: 'Relies on an expired fact', unsupported: 'Claim without an approved source', 'needs-check': 'Needs human check' };
     let fix = null, rejectedFix = null;
     if (c.suggestedRewrite && c.suggestedRewrite !== c.quote) {
-      const v = validateFix({ replacement: c.suggestedRewrite, original: c.quote, sentence, fact, terms: ws.terms });
-      if (v.ok) fix = { replacement: c.suggestedRewrite, note: `AI-suggested rewrite, checked by the validator${fact ? ` against ${fact.id}` : ''}.`, ai: true };
+      const v = checkRewrite(c.suggestedRewrite, c.quote, sentence, [c.factId, ...(c.candidates || [])]);
+      if (v.ok) fix = { replacement: c.suggestedRewrite, note: `AI-suggested rewrite, checked by the validator${v.fact ? ` against ${v.fact.id}` : ''}.`, ai: true };
       else rejectedFix = { replacement: c.suggestedRewrite, reason: v.reason };
     }
     findings.push(finding(ws, {
       ruleId, severity, title: titles[verdict] || 'Claim to check', quote: c.quote, start: loc.start, end: loc.end,
-      factId: fact?.id || null, reason: c.explanation || 'The AI flagged this as a claim that the fact ledger does not support.',
+      factId: fact?.id || null, candidates: c.candidates || [], reason: c.explanation || 'The AI flagged this as a claim that the fact ledger does not support.',
       fix, rejectedFix, verdict, source: 'ai', aiAssisted: true, model, confidence: c.confidence ?? 0.5, claimKind: c.claimType,
     }));
   }
