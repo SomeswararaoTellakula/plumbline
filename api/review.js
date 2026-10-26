@@ -123,7 +123,7 @@ export default async function handler(req, res) {
     const today = /^\d{4}-\d{2}-\d{2}$/.test(body.today || '') ? body.today : new Date().toISOString().slice(0, 10);
     const allFacts = (Array.isArray(body.facts) ? body.facts : []).slice(0, 200);
     const facts = allFacts.filter((f) => !f.confidential); // confidential facts never leave the browser's review
-    const rules = (Array.isArray(body.rules) ? body.rules : []).slice(0, 100).filter((r) => ['Tone', 'Messaging'].includes(r.category) && r.active !== false);
+    const rules = (Array.isArray(body.rules) ? body.rules : []).slice(0, 100).filter((r) => r.active !== false && (r.engine === 'ai' || ['Tone', 'Messaging'].includes(r.category)));
     const tone = body.tone || {};
     const confidentialTerms = Array.isArray(body.confidentialTerms) ? body.confidentialTerms.slice(0, 50) : [];
 

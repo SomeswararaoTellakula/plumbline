@@ -37,7 +37,10 @@ export default async function handler(req, res) {
       system: SYSTEM,
       parts: [{ inlineData: { mimeType: m[1], data: m[2] } }, { text: 'Describe this image as specified.' }],
       schema: SCHEMA,
-      mock: () => ({ altText: 'Pink banner with large white text reading "Diwali Dhamaka! ₹200 cashback on your first UPI payment" above the Nimbupay name.', visibleText: 'Diwali Dhamaka! ₹200 cashback on your first UPI payment. Nimbupay', textColorHex: '#FFFFFF', backgroundColorHex: '#FF5FA2' }),
+      // Mock mode (local testing only) cannot see the image, so it answers by file name.
+      mock: () => (/diwali/i.test(String(body.name || ''))
+        ? { altText: 'Pink banner with large white text reading "Diwali Dhamaka! ₹200 cashback on your first UPI payment" above the Nimbupay name.', visibleText: 'Diwali Dhamaka! ₹200 cashback on your first UPI payment. Nimbupay', textColorHex: '#FFFFFF', backgroundColorHex: '#FF5FA2' }
+        : { altText: 'Dark green card with the text "Every payment needs your UPI PIN" and a lime padlock.', visibleText: 'Every payment needs your UPI PIN. NimbuPay', textColorHex: '#F4F7EF', backgroundColorHex: '#1F4D2B' }),
     });
     const response = {
       altText: String(data.altText || '').slice(0, 300),

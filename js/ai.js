@@ -42,8 +42,8 @@ export function aiReview(ws, draft, today) {
   });
 }
 
-export function aiAltText(dataUrl) {
-  return post('api/alt-text', { image: dataUrl });
+export function aiAltText(dataUrl, name = '') {
+  return post('api/alt-text', { image: dataUrl, name });
 }
 
 export function aiImportKit(text, confidentialTerms) {

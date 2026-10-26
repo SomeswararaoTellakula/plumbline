@@ -53,7 +53,7 @@ export async function runReview(draft, onUpdate = () => {}) {
   const bodyAtStart = draft.body;
   const [textRes, imgRes] = await Promise.allSettled([
     aiReview(ws, draft, today),
-    draft.image?.src ? toDataUrl(draft.image.src).then(aiAltText) : Promise.resolve(null),
+    draft.image?.src ? toDataUrl(draft.image.src).then((url) => aiAltText(url, draft.image.name)) : Promise.resolve(null),
   ]);
   if (draft.body !== bodyAtStart) {
     // The text changed while the AI was working; its answer no longer matches the text.
@@ -81,7 +81,7 @@ export async function runReview(draft, onUpdate = () => {}) {
   if (aiImage) model = model || aiImage.model;
   draft.imageAi = aiImage ? { visibleText: aiImage.visibleText, model: aiImage.model } : null;
 
-  const all = dedupe([...merged.findings, ...imageFindings(ws, draft.image, analysis, aiImage), ...imageTextFindings(ws, aiImage?.visibleText, today)]);
+  const all = dedupe([...merged.findings, ...imageFindings(ws, draft.image, analysis, aiImage), ...imageTextFindings(ws, aiImage?.visibleText, today, draft.body)]);
   draft.findings = number(carryOver(previous, all), draft);
   draft.supported = merged.supported;
   const open = draft.findings.filter((f) => f.status === 'open');

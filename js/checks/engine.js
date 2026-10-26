@@ -272,15 +272,20 @@ export function mergeAI(ws, text, det, ai, today) {
 }
 
 /** Claims and banned wording inside an image, from the text the AI read in it. */
-export function imageTextFindings(ws, visibleText, today) {
+export function imageTextFindings(ws, visibleText, today, bodyText = '') {
   if (!visibleText || !visibleText.trim()) return [];
   const det = runDeterministic(ws, visibleText, today);
+  // "T&C apply" is content-level: the post text either already has it or is already flagged.
+  const offerInBody = /\b(cashback|discount|offer|coupon|% off)\b/i.test(bodyText);
+  const tcInBody = /T&Cs?|terms (and|&) conditions/i.test(bodyText);
   return det.findings
     .filter((f) => !['TON-04', 'TRM-01', 'TON-01'].includes(f.ruleId))
+    .filter((f) => f.ruleId !== 'LEG-01' || (!offerInBody && !tcInBody))
     .map((f) => ({
       ...f, target: 'image', start: null, end: null, aiAssisted: true,
       title: `In the image: ${f.title.charAt(0).toLowerCase()}${f.title.slice(1)}`,
-      reason: `${f.reason} (Text read from the image by the AI: "${f.quote}".)`,
+      quote: f.quote,
+      reason: `${f.reason} (Read from the image by the AI${f.quote ? `: "${f.quote}"` : ''}.)`,
       fix: f.fix ? { replacement: f.fix.replacement, note: 'Suggested wording for the artwork. Update the image file; this cannot be applied automatically.', kind: 'artwork' } : null,
     }));
 }
