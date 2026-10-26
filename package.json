@@ -1,0 +1,15 @@
+{
+  "name": "plumbline",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Plumbline - pre-publication brand governance: content is checked against approved rules, terms, facts and assets, findings are explained, and a human decides.",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "node scripts/dev-server.js",
+    "dev:mock": "MOCK_AI=1 node scripts/dev-server.js",
+    "test": "node --test tests/*.test.js"
+  }
+}
