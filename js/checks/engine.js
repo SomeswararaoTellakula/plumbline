@@ -1,6 +1,6 @@
 // Review engine: deterministic checks first, then merging of AI-assisted results.
 // Every finding names the rule (and fact, where relevant) behind it.
-import { sentences, wordCount, escapeRegExp, locate } from '../lib/text.js';
+import { sentences, wordCount, escapeRegExp, locate, parseQuantities } from '../lib/text.js';
 import { detectClaims, groundClaim, isExpired } from './claims.js';
 import { validateFix } from './validate.js';
 import { contrastRatio, nearestPaletteColour, hexToRgb } from '../lib/color.js';
@@ -192,6 +192,12 @@ export function mergeAI(ws, text, det, ai, today) {
   // A rewrite may use numbers from the fact it cites; if the AI cited none (or the wrong one),
   // try the facts retrieved for this claim and record the one that actually supports the rewrite.
   const checkRewrite = (replacement, original, sentence, ids) => {
+    if (!parseQuantities(replacement).length) {
+      // No figures to back up: only cite a fact if the AI named one.
+      const cited = factById(ids[0]);
+      const v = validateFix({ replacement, original, sentence, fact: cited, terms: ws.terms });
+      return v.ok ? { ok: true, fact: cited && !cited.confidential ? cited : null } : { ok: false, reason: v.reason, fact: null };
+    }
     const tried = [...new Set(ids.filter(Boolean))].map(factById).filter((f) => f && !f.confidential);
     let first = null;
     for (const f of tried.length ? tried : [null]) {

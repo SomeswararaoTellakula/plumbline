@@ -12,6 +12,14 @@ export class AIError extends Error {
   }
 }
 
+// Models sometimes write characters such as ₹ as the literal text "\\u20b9" inside a JSON string.
+function unescapeDeep(v) {
+  if (typeof v === 'string') return v.replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+  if (Array.isArray(v)) return v.map(unescapeDeep);
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, unescapeDeep(x)]));
+  return v;
+}
+
 export function aiConfigured() {
   return Boolean(process.env.GEMINI_API_KEY) || process.env.MOCK_AI === '1';
 }
@@ -64,7 +72,7 @@ export async function generateJSON({ system, parts, schema, temperature = 0.2, t
       const text = (json.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('');
       if (!text) throw new AIError('AI_EMPTY', 502, 'The AI returned an empty answer.');
       try {
-        return { data: JSON.parse(text), model };
+        return { data: unescapeDeep(JSON.parse(text)), model };
       } catch {
         throw new AIError('AI_BAD_JSON', 502, 'The AI answer was not valid JSON.');
       }
