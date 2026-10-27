@@ -2,7 +2,8 @@
 // Reads an image: drafts alt text, transcribes visible text (so claims inside the artwork can be checked),
 // and reports the main text and background colours (the contrast ratio itself is computed with the WCAG formula).
 import { send, readJson, rateLimited, cacheKey, cacheGet, cacheSet, methodGuard, errorResponse } from './_lib/http.js';
-import { generateJSON } from './_lib/gemini.js';
+import { generateJSON, AIError } from './_lib/gemini.js';
+import { recordedImage } from './_lib/recorded.js';
 
 const SCHEMA = {
   type: 'OBJECT',
@@ -25,8 +26,9 @@ Return JSON only:
 export default async function handler(req, res) {
   if (methodGuard(req, res)) return;
   if (rateLimited(req)) return send(res, 429, { error: 'RATE_LIMITED', message: 'Too many AI requests from this address; try again in a few minutes.' });
+  let body = null;
   try {
-    const body = await readJson(req);
+    body = await readJson(req);
     const m = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String(body.image || ''));
     if (!m) return send(res, 400, { error: 'BAD_IMAGE', message: 'Send the image as a PNG, JPEG or WebP data URL.' });
     if (m[2].length > 2_800_000) return send(res, 413, { error: 'TOO_LARGE', message: 'Images are limited to about 2 MB for AI review.' });
@@ -52,6 +54,9 @@ export default async function handler(req, res) {
     cacheSet(key, response);
     return send(res, 200, response);
   } catch (err) {
+    // Bundled demo images only (never uploads): fall back to the answer Gemini gave for this image earlier.
+    const rec = err instanceof AIError ? recordedImage(String(body?.asset || '')) : null;
+    if (rec) return send(res, 200, { ...rec.response, recorded: { at: rec.recordedAt, reason: err.code } });
     return errorResponse(res, err);
   }
 }

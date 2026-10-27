@@ -29,8 +29,8 @@ async function post(path, body, timeoutMs = 60000) {
   }
 }
 
-export function aiReview(ws, draft, today) {
-  return post('api/review', {
+export function reviewRequestBody(ws, draft, today) {
+  return {
     text: draft.body,
     channel: draft.channel,
     brand: ws.brand.name,
@@ -39,11 +39,16 @@ export function aiReview(ws, draft, today) {
     tone: { voice: ws.tone.voice, do: ws.tone.do, dont: ws.tone.dont, keyMessages: ws.tone.keyMessages },
     facts: ws.facts.map(({ id, statement, metric, keywords, expires, confidential }) => ({ id, statement, metric, keywords, expires, confidential })),
     confidentialTerms: ws.tone.confidentialTerms || [],
-  });
+  };
 }
 
-export function aiAltText(dataUrl, name = '') {
-  return post('api/alt-text', { image: dataUrl, name });
+export function aiReview(ws, draft, today) {
+  return post('api/review', reviewRequestBody(ws, draft, today));
+}
+
+// `asset` is set only for the bundled demo images (assets/...), never for uploads.
+export function aiAltText(dataUrl, name = '', asset = '') {
+  return post('api/alt-text', { image: dataUrl, name, ...(asset ? { asset } : {}) });
 }
 
 export function aiImportKit(text, confidentialTerms) {

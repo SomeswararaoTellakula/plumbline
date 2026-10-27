@@ -24,9 +24,10 @@ export function aiConfigured() {
   return Boolean(process.env.GEMINI_API_KEY) || process.env.MOCK_AI === '1';
 }
 
-// gemini-2.5-flash first (fast with thinking off), then lighter and newer fallbacks.
+// gemini-2.5-flash first (fast with thinking off), then Flash-Lite (a much larger free-tier daily quota),
+// then the older Lite and the newest Flash.
 export function modelCandidates() {
-  return [...new Set([process.env.GEMINI_MODEL, 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-flash-latest'].filter(Boolean))];
+  return [...new Set([process.env.GEMINI_MODEL, 'gemini-2.5-flash', 'gemini-flash-lite-latest', 'gemini-2.5-flash-lite', 'gemini-flash-latest'].filter(Boolean))];
 }
 
 // Models that just failed (overloaded, rate-limited, timed out, missing) are tried last for a while,
@@ -83,7 +84,14 @@ export async function generateJSON({ system, parts, schema, temperature = 0.2, a
       clearTimeout(timer);
       if (res.status === 404) { coolDown(model, 60 * 60_000); lastError = new AIError('AI_MODEL_NOT_FOUND', 502, `Model ${model} is not available.`); break; }
       if ((res.status === 401 || res.status === 403) && auth === 'header') { lastError = new AIError('AI_AUTH', 502, 'The AI key was rejected.'); continue; }
-      if (res.status === 429) { rateLimited = true; coolDown(model, 60_000); lastError = new AIError('AI_RATE_LIMIT', 429, BUSY); break; }
+      if (res.status === 429) {
+        // A daily quota stays used up for hours; a per-minute one clears in a minute.
+        const detail = await res.text().catch(() => '');
+        rateLimited = true;
+        coolDown(model, /PerDay/i.test(detail) ? 30 * 60_000 : 60_000);
+        lastError = new AIError('AI_RATE_LIMIT', 429, BUSY);
+        break;
+      }
       if (!res.ok) {
         const detail = (await res.text().catch(() => '')).slice(0, 300);
         if (res.status >= 500) coolDown(model, 90_000);

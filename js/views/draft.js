@@ -139,7 +139,7 @@ function imageCard(d, editable) {
         <label class="btn small" style="margin:0">Replace image<input type="file" accept="image/png,image/jpeg,image/webp" data-action="add-image" data-id="${d.id}" hidden></label>
         <button class="btn small ghost" data-action="remove-image" data-id="${d.id}">Remove</button></div>` : `<p class="small">${img.alt ? esc(img.alt) : '<span class="muted">No alt text.</span>'}</p>`}
       ${swatches ? `<div class="small muted" style="margin-top:12px">Dominant colours (✓ = in the brand palette)</div><div class="swatches">${swatches}</div>` : `<p class="muted small" style="margin-top:12px">Run a review to analyse colours and contrast.</p>`}
-      ${d.imageAi?.visibleText ? `<div class="small muted" style="margin-top:12px">Text read from the image (AI)</div><p class="small" style="font-family:var(--serif)">“${esc(d.imageAi.visibleText)}”</p>` : ''}
+      ${d.imageAi?.visibleText ? `<div class="small muted" style="margin-top:12px">Text read from the image (AI${d.imageAi.recordedAt ? `, recorded ${esc(fmtDate(d.imageAi.recordedAt))}` : ''})</div><p class="small" style="font-family:var(--serif)">“${esc(d.imageAi.visibleText)}”</p>` : ''}
     </div>
   </div>`;
 }
@@ -156,7 +156,7 @@ function findingsPanel(d) {
   let line = '';
   if (reviewing === 'rules') line = '<span class="spinner"></span> Running rule checks…';
   else if (lr?.ai === 'running') line = `<span class="spinner"></span> Rule checks done. AI checks running (${esc(aiState.model || 'Gemini')})…`;
-  else if (lr) line = `Reviewed ${timeAgo(lr.at)} · ${lr.ai === 'ok' ? `rules + AI (${esc(lr.model || 'Gemini')})` : 'rules only'}`;
+  else if (lr) line = `Reviewed ${timeAgo(lr.at)} · ${lr.ai === 'ok' ? `rules + AI (${esc(lr.model || 'Gemini')}${lr.recordedAt ? `, recorded ${esc(fmtDate(lr.recordedAt))}` : ''})` : 'rules only'}`;
   else line = 'Not reviewed yet.';
   const warn = lr && d.needsReview && d.status !== 'approved' ? `<div class="notice warn" style="margin-top:8px">The content changed since the last review. Run the review again.</div>` : '';
   const aiNote = lr && lr.ai !== 'running' && lr.message ? `<div class="notice info" style="margin-top:8px">${esc(lr.message)}</div>` : '';

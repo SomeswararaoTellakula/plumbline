@@ -53,7 +53,7 @@ export async function runReview(draft, onUpdate = () => {}) {
   const bodyAtStart = draft.body;
   const [textRes, imgRes] = await Promise.allSettled([
     aiReview(ws, draft, today),
-    draft.image?.src ? toDataUrl(draft.image.src).then((url) => aiAltText(url, draft.image.name)) : Promise.resolve(null),
+    draft.image?.src ? toDataUrl(draft.image.src).then((url) => aiAltText(url, draft.image.name, /^assets\/[\w.-]+$/.test(draft.image.src) ? draft.image.src : '')) : Promise.resolve(null),
   ]);
   if (draft.body !== bodyAtStart) {
     // The text changed while the AI was working; its answer no longer matches the text.
@@ -68,11 +68,13 @@ export async function runReview(draft, onUpdate = () => {}) {
   let message = '';
   let model = '';
   let privacy = null;
+  let recordedAt = '';
   if (textRes.status === 'fulfilled') {
     merged = mergeAI(ws, draft.body, det, textRes.value, today);
     model = textRes.value.model;
     privacy = textRes.value.privacy;
     if (textRes.value.warning) message = textRes.value.warning;
+    if (textRes.value.recorded) { recordedAt = textRes.value.recorded.at; message = textRes.value.recorded.note; }
   } else {
     aiStatus = 'failed';
     message = textRes.reason?.message || 'The AI check failed, so only rule-based checks ran.';
@@ -80,13 +82,13 @@ export async function runReview(draft, onUpdate = () => {}) {
   const aiImage = imgRes.status === 'fulfilled' ? imgRes.value : null;
   if (imgRes.status === 'rejected' && aiStatus === 'ok' && !message) message = `Image reading failed: ${imgRes.reason?.message || 'unknown error'}.`;
   if (aiImage) model = model || aiImage.model;
-  draft.imageAi = aiImage ? { visibleText: aiImage.visibleText, model: aiImage.model } : null;
+  draft.imageAi = aiImage ? { visibleText: aiImage.visibleText, model: aiImage.model, recordedAt: aiImage.recorded?.at || '' } : null;
 
   const all = dedupe([...merged.findings, ...imageFindings(ws, draft.image, analysis, aiImage), ...imageTextFindings(ws, aiImage?.visibleText, today, draft.body)]);
   draft.findings = number(carryOver(previous, all), draft);
   draft.supported = merged.supported;
   const open = draft.findings.filter((f) => f.status === 'open');
-  draft.lastReview = { at: startedAt, ai: aiStatus, model, message, privacy, counts: countBySeverity(open) };
+  draft.lastReview = { at: startedAt, ai: aiStatus, model, message, privacy, recordedAt, counts: countBySeverity(open) };
   log('Ran review', draft.id, `${draft.findings.length} findings (${draft.lastReview.counts.blocker} blockers) · ${aiStatus === 'ok' ? `rules + AI (${model})` : 'rules only'}`);
   save();
   onUpdate();

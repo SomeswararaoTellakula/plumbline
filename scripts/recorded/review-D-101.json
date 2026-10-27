@@ -1,0 +1,103 @@
+{
+ "draft": "D-101",
+ "recordedAt": "2026-10-26",
+ "response": {
+  "claims": [
+   {
+    "quote": "India's fastest UPI app",
+    "claimType": "ranking",
+    "verdict": "unsupported",
+    "factId": "",
+    "confidence": 1,
+    "explanation": "No fact supports the claim that NimbuPay is India's fastest UPI app. F-002 mentions an average confirmation time, but this does not establish it as the fastest overall.",
+    "suggestedRewrite": "a fast UPI app",
+    "candidates": [
+     "F-001",
+     "F-002",
+     "F-006",
+     "F-004"
+    ]
+   },
+   {
+    "quote": "trusted by 5 million users",
+    "claimType": "implied",
+    "verdict": "contradicted",
+    "factId": "F-001",
+    "confidence": 1,
+    "explanation": "The claim states 5 million users, but F-001 indicates NimbuPay has 4.2 million registered users, which is a lower number.",
+    "suggestedRewrite": "trusted by 4.2 million users",
+    "candidates": [
+     "F-001",
+     "F-002",
+     "F-004",
+     "F-006"
+    ]
+   },
+   {
+    "quote": "guaranteed ₹200 cashback",
+    "claimType": "guarantee",
+    "verdict": "contradicted",
+    "factId": "F-004",
+    "confidence": 1,
+    "explanation": "The claim mentions a guaranteed ₹200 cashback, but F-004 states new users get up to ₹100 cashback, which is a lower maximum.",
+    "suggestedRewrite": "up to ₹100 cashback",
+    "candidates": [
+     "F-004",
+     "F-001",
+     "F-002",
+     "F-006"
+    ]
+   },
+   {
+    "quote": "Pay your bills, split dinners and send money home in seconds",
+    "claimType": "feature",
+    "verdict": "unsupported",
+    "factId": "",
+    "confidence": 0.8,
+    "explanation": "F-008 confirms support for bill payments, but there is no fact supporting the ability to split dinners or send money home. F-002 mentions payments confirming in about 2 seconds, but this doesn't cover all aspects of the claim.",
+    "suggestedRewrite": "Pay your bills in seconds",
+    "candidates": [
+     "F-004",
+     "F-008",
+     "F-002",
+     "F-009"
+    ]
+   }
+  ],
+  "issues": [
+   {
+    "quote": "!!!",
+    "ruleId": "TON-01",
+    "title": "Too many exclamation marks",
+    "explanation": "The draft uses three exclamation marks, which violates the rule of using at most one exclamation mark per piece. This creates a hyped tone.",
+    "suggestedRewrite": "!",
+    "confidence": 1
+   },
+   {
+    "quote": "way better than PhonePe",
+    "ruleId": "TON-03",
+    "title": "Competitor comparison",
+    "explanation": "The draft directly compares NimbuPay to PhonePe, which violates the rule against naming competitors.",
+    "suggestedRewrite": "and enjoy great rewards",
+    "confidence": 1
+   },
+   {
+    "quote": "It's a no-brainer, so download now before the offer ends!",
+    "ruleId": "TON-02",
+    "title": "Pressure and urgency",
+    "explanation": "This phrase creates pressure and urgency, urging the user to download immediately before an offer expires, which violates the rule against fear, shame, or pressure.",
+    "suggestedRewrite": "Download today to get started!",
+    "confidence": 0.9
+   }
+  ],
+  "keyMessagesCovered": [
+   "Fast",
+   "Simple"
+  ],
+  "model": "gemini-2.5-flash",
+  "privacy": {
+   "redacted": 0,
+   "excludedFacts": 1
+  }
+ }
+}

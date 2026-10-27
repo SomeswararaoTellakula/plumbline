@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { generateJSON, orderedModels, _resetHealth } from '../api/_lib/gemini.js';
 import reviewHandler from '../api/review.js';
 import { seedWorkspace } from '../js/seed.js';
+import { reviewRequestBody } from '../js/ai.js';
 
 process.env.GEMINI_API_KEY = 'test-key-not-real';
 delete process.env.MOCK_AI;
@@ -30,15 +31,15 @@ test('an overloaded model falls through to the next one, which is then tried fir
   const calls = fakeFetch((model) => (model === 'gemini-2.5-flash' ? new Response('{"error":"overloaded"}', { status: 503 }) : ok({ x: 1 })));
   const r = await generateJSON({ system: 's', parts: [{ text: 'p' }], schema: {} });
   assert.deepEqual(r.data, { x: 1 });
-  assert.equal(r.model, 'gemini-2.5-flash-lite');
-  assert.deepEqual(calls, ['gemini-2.5-flash', 'gemini-2.5-flash-lite']);
-  assert.equal(orderedModels()[0], 'gemini-2.5-flash-lite');
+  assert.equal(r.model, 'gemini-flash-lite-latest');
+  assert.deepEqual(calls, ['gemini-2.5-flash', 'gemini-flash-lite-latest']);
+  assert.equal(orderedModels()[0], 'gemini-flash-lite-latest');
 });
 
 test('a rate limit on one model tries the others; all rate-limited gives a clear 429', async () => {
   const calls = fakeFetch(() => new Response('{}', { status: 429 }));
   await assert.rejects(generateJSON({ system: 's', parts: [{ text: 'p' }], schema: {} }), (e) => e.status === 429 && /busy/.test(e.publicMessage));
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
 });
 
 test('a model that hangs is abandoned in time and the next model answers', async () => {
@@ -47,7 +48,7 @@ test('a model that hangs is abandoned in time and the next model answers', async
     : ok({ y: 2 })));
   const t0 = Date.now();
   const r = await generateJSON({ system: 's', parts: [{ text: 'p' }], schema: {}, attemptMs: 200 });
-  assert.equal(r.model, 'gemini-2.5-flash-lite');
+  assert.equal(r.model, 'gemini-flash-lite-latest');
   assert.ok(Date.now() - t0 < 2000);
 });
 
@@ -72,7 +73,8 @@ function call(handler, body) {
 
 test('review keeps tone results when claim verification fails, and says so', async () => {
   const ws = seedWorkspace();
-  const d = ws.drafts.find((x) => x.id === 'D-101');
+  const d = { ...ws.drafts.find((x) => x.id === 'D-101') };
+  d.body += ' Edited.'; // an edited draft has no recorded answer
   const quote = 'download now before the offer ends';
   fakeFetch((model, init) => {
     const prompt = JSON.parse(init.body).systemInstruction.parts[0].text;
@@ -84,4 +86,32 @@ test('review keeps tone results when claim verification fails, and says so', asy
   assert.equal(r.body.issues.length, 1);
   assert.equal(r.body.claims.length, 0);
   assert.match(r.body.warning, /verification did not finish/);
+});
+
+test('an unchanged demo draft falls back to the recorded Gemini answer, labelled as recorded', async () => {
+  const ws = seedWorkspace();
+  const d = ws.drafts.find((x) => x.id === 'D-101');
+  fakeFetch(() => new Response('{"error":{"status":"RESOURCE_EXHAUSTED"}}', { status: 429 }));
+  const body = JSON.parse(JSON.stringify(reviewRequestBody(ws, d, '2026-10-27')));
+  const r = await call(reviewHandler, body);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.recorded.at, '2026-10-26');
+  assert.match(r.body.recorded.note, /Edit the text/);
+  assert.ok(r.body.claims.length >= 3);
+  assert.equal(r.body.model, 'gemini-2.5-flash');
+
+  const edited = { ...body, text: body.text.replace('5 million', '6 million') };
+  const r2 = await call(reviewHandler, edited);
+  assert.equal(r2.status, 429);
+  assert.equal(r2.body.recorded, undefined);
+});
+
+test('a changed Brand Kit does not reuse a recorded answer', async () => {
+  const ws = seedWorkspace();
+  const d = ws.drafts.find((x) => x.id === 'D-103');
+  fakeFetch(() => new Response('{}', { status: 503 }));
+  const body = JSON.parse(JSON.stringify(reviewRequestBody(ws, d, '2026-10-27')));
+  body.facts = body.facts.map((f) => (f.id === 'F-008' ? { ...f, statement: f.statement + ' Gas bills too.' } : f));
+  const r = await call(reviewHandler, body);
+  assert.equal(r.status, 502);
 });

@@ -51,7 +51,8 @@ Other drafts to try:
 - **A fix validator** rejects any AI rewrite that introduces a number, ranking or banned term that is not in the original text or the cited fact. Rejected rewrites are shown with the reason, not offered as fixes.
 - **Every AI-produced finding is labelled** "AI-assisted", with the model and its confidence.
 - **Privacy gateway.** Confidential terms, emails, phone numbers and UPI IDs are replaced with placeholders before the AI call and restored afterwards. Facts marked confidential are never sent.
-- **Resilient AI calls.** If a model is overloaded, rate-limited or slow, the request falls through to the next model (Gemini 2.5 Flash → 2.5 Flash-Lite → Flash latest) within one shared time budget, and a model that just failed is tried last for a while. If claim verification does not finish, tone and messaging results are still returned and the page says so.
+- **Resilient AI calls.** If a model is overloaded, rate-limited or slow, the request falls through to the next model (Gemini 2.5 Flash → Flash-Lite latest → 2.5 Flash-Lite → Flash latest) within one shared time budget, and a model that just failed is tried last for a while (30 minutes when its daily quota is used up). If claim verification does not finish, tone and messaging results are still returned and the page says so.
+- **Recorded answers for the demo.** For the unchanged demo drafts and images only, the answers Gemini gave earlier are stored in `api/_lib/recorded-data.js` and served if the live call fails (for example when the free-tier quota is used up). They match on the exact text and Brand Kit, and the page labels them "recorded" with the date. Any edit makes a fresh live call.
 - **Prompt-injection defence.** Draft text is passed as delimited data with an instruction to ignore embedded instructions. Output must match a JSON schema, and quotes that do not exist in the draft are discarded.
 
 ## Workflow
@@ -96,12 +97,13 @@ python3 tests/e2e_more.py http://localhost:3000
 ## Deploy (Vercel)
 
 1. Import this repository in Vercel. Use framework preset **Other**, with no build command and no output directory.
-2. Add the environment variable `GEMINI_API_KEY` (optionally `GEMINI_MODEL`; the default is `gemini-2.5-flash`, falling back to `gemini-2.5-flash-lite` and `gemini-flash-latest`).
-3. Deploy. If the key is missing or the AI is down, the app still works with rule-based checks and says so.
+2. Add the environment variable `GEMINI_API_KEY` (optionally `GEMINI_MODEL`; the default is `gemini-2.5-flash`, falling back to `gemini-flash-lite-latest`, `gemini-2.5-flash-lite` and `gemini-flash-latest`). A billed Gemini project removes the free-tier limits.
+3. After changing the demo drafts or Brand Kit seed, record fresh answers into `scripts/recorded/` and run `node scripts/build-recorded.mjs`.
+4. Deploy. If the key is missing or the AI is down, the app still works with rule-based checks and says so.
 
 ## Testing
 
-- **Unit tests** (16 in total). `tests/engine.test.js` (11 tests) covers:
+- **Unit tests** (18 in total). `tests/engine.test.js` (11 tests) covers:
   - number parsing (Indian formats, units, qualifiers);
   - comparator qualifiers;
   - the planted problems in each demo draft;
@@ -111,7 +113,7 @@ python3 tests/e2e_more.py http://localhost:3000
   - image findings;
   - colour maths and diffs.
 
-  `tests/gemini.test.js` (5 tests) replaces the network with a fake and covers an overloaded model falling through to the next, rate limits on every model, a hanging model abandoned in time, the shared deadline, and partial results when claim verification fails.
+  `tests/gemini.test.js` (7 tests) replaces the network with a fake and covers an overloaded model falling through to the next, rate limits on every model, a hanging model abandoned in time, the shared deadline, partial results when claim verification fails, recorded answers for an unchanged demo draft, and no recorded answer once the text or Brand Kit changes.
 - **End-to-end** (`tests/e2e_smoke.py`, Playwright) covers the full journey:
   - queue → open draft → run review (rules + AI) → validator rejection shown → accept fixes → dismiss with reason → Brand Manager override;
   - submit → switch to Reviewer → approve → version history, activity and Brand Kit pages.
@@ -128,7 +130,7 @@ python3 tests/e2e_more.py http://localhost:3000
 - The workspace is saved in the visitor's browser, so two people do not see each other's changes. **Reset demo** restores the starting state.
 - Roles are a switcher, not real accounts.
 - Text and images only: DOCX and PDF review, brand-guide PDF upload and logo checks are planned for Round 3. Brand-guide import works from pasted text.
-- AI checks depend on Gemini's free tier. Under heavy load the page may say the AI is busy; rule checks still run, and a retry a minute later works. Each address gets 30 AI reviews per 10 minutes.
+- AI checks run on Gemini's free tier, which has small daily limits. When they are used up, the unchanged demo drafts show recorded Gemini answers (labelled with their date), and edited or new drafts get rule checks only, with a message saying the AI is busy. Each address gets 30 AI reviews per 10 minutes.
 - The AI can over-flag. In D-103, "Your electricity bill is due today" may be flagged as pressure; it can be dismissed with a reason.
 - Image contrast and palette figures are estimates on photos with busy backgrounds.
 

@@ -3,9 +3,10 @@
 // approved facts for each claim, (3) verify each claim against only those facts.
 // The browser then merges this with the deterministic checks; numbers are always re-checked by the comparator.
 import { send, readJson, rateLimited, cacheKey, cacheGet, cacheSet, methodGuard, errorResponse } from './_lib/http.js';
-import { generateJSON } from './_lib/gemini.js';
+import { generateJSON, AIError } from './_lib/gemini.js';
 import { redact, restore } from './_lib/redact.js';
 import { retrieveFacts } from '../js/lib/retrieval.js';
+import { reviewKey, recordedReview } from './_lib/recorded.js';
 
 const EXTRACT_SCHEMA = {
   type: 'OBJECT',
@@ -116,18 +117,16 @@ export default async function handler(req, res) {
   if (rateLimited(req)) return send(res, 429, { error: 'RATE_LIMITED', message: 'Too many AI reviews from this address. Rule-based checks still ran; try again in a few minutes.' });
   // Both AI steps share one time budget so the function always answers before the 60 s platform limit.
   const deadline = Date.now() + 52000;
+  let recorded = null;
+  const fallback = (reason) => send(res, 200, { ...recorded.response, recorded: { at: recorded.recordedAt, reason, note: `Gemini is busy right now, so the AI results are the answers ${recorded.response.model} gave for this exact draft on ${dayLabel(recorded.recordedAt)}. Edit the text to run a fresh AI check.` } });
   try {
     const body = await readJson(req);
     const text = String(body.text || '');
     if (!text.trim()) return send(res, 400, { error: 'EMPTY', message: 'There is no text to review.' });
     if (text.length > 6000) return send(res, 413, { error: 'TOO_LONG', message: 'Drafts are limited to 6,000 characters for AI review.' });
-    const brand = String(body.brand || 'the brand').slice(0, 60);
-    const today = /^\d{4}-\d{2}-\d{2}$/.test(body.today || '') ? body.today : new Date().toISOString().slice(0, 10);
-    const allFacts = (Array.isArray(body.facts) ? body.facts : []).slice(0, 200);
-    const facts = allFacts.filter((f) => !f.confidential); // confidential facts never leave the browser's review
-    const rules = (Array.isArray(body.rules) ? body.rules : []).slice(0, 100).filter((r) => r.active !== false && (r.engine === 'ai' || ['Tone', 'Messaging'].includes(r.category)));
-    const tone = body.tone || {};
-    const confidentialTerms = Array.isArray(body.confidentialTerms) ? body.confidentialTerms.slice(0, 50) : [];
+    const { brand, today, allFacts, facts, rules, tone, confidentialTerms } = normalizeReviewBody(body);
+    // Answers Gemini gave earlier for this exact draft and Brand Kit, used only if the live call fails.
+    recorded = recordedReview(reviewKey({ text, brand, facts, rules, tone, confidentialTerms }));
 
     const key = cacheKey({ text, brand, today, facts, rules, tone, confidentialTerms, v: 3 });
     const cached = cacheGet(key);
@@ -186,9 +185,28 @@ export default async function handler(req, res) {
       keyMessagesCovered: extract.data.keyMessagesCovered || [],
     }, map);
     const response = { ...result, model, privacy: { redacted: map.length, excludedFacts: allFacts.length - facts.length }, ...(warning ? { warning } : {}) };
+    if (warning && recorded) return fallback('verification');
     if (!warning) cacheSet(key, response);
     return send(res, 200, response);
   } catch (err) {
+    if (recorded && err instanceof AIError) return fallback(err.code);
     return errorResponse(res, err);
   }
+}
+
+function dayLabel(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${d} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1]} ${y}`;
+}
+
+/** The parts of a review request the AI sees, validated and filtered the same way every time. */
+export function normalizeReviewBody(body) {
+  const brand = String(body.brand || 'the brand').slice(0, 60);
+  const today = /^\d{4}-\d{2}-\d{2}$/.test(body.today || '') ? body.today : new Date().toISOString().slice(0, 10);
+  const allFacts = (Array.isArray(body.facts) ? body.facts : []).slice(0, 200);
+  const facts = allFacts.filter((f) => !f.confidential); // confidential facts never leave the browser's review
+  const rules = (Array.isArray(body.rules) ? body.rules : []).slice(0, 100).filter((r) => r.active !== false && (r.engine === 'ai' || ['Tone', 'Messaging'].includes(r.category)));
+  const tone = body.tone || {};
+  const confidentialTerms = Array.isArray(body.confidentialTerms) ? body.confidentialTerms.slice(0, 50) : [];
+  return { brand, today, allFacts, facts, rules, tone, confidentialTerms };
 }

@@ -1,0 +1,11 @@
+{
+ "asset": "assets/diwali-banner.png",
+ "recordedAt": "2026-10-26",
+ "response": {
+  "altText": "The image announces a \"Diwali Dhamaka!\" offer of ₹200 cashback on the first UPI payment from Nimbupay. Three light pink circles are visible on the right side of the image.",
+  "visibleText": "Diwali Dhamaka! ₹200 cashback on your first UPI payment Nimbupay",
+  "textColorHex": "#FFFFFF",
+  "backgroundColorHex": "#F5428A",
+  "model": "gemini-2.5-flash"
+ }
+}

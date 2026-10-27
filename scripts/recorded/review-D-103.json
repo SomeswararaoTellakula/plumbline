@@ -1,0 +1,45 @@
+{
+ "draft": "D-103",
+ "recordedAt": "2026-10-26",
+ "response": {
+  "claims": [
+   {
+    "quote": "Your electricity bill is due today",
+    "claimType": "feature",
+    "verdict": "unsupported",
+    "factId": "",
+    "confidence": 1,
+    "explanation": "No provided fact states that the user's electricity bill is due today. Fact F-008 only mentions that NimbuPay supports electricity bill payments.",
+    "suggestedRewrite": "your electricity bill",
+    "candidates": [
+     "F-008",
+     "F-004"
+    ]
+   }
+  ],
+  "issues": [
+   {
+    "quote": "Don't be the one who loses money!",
+    "ruleId": "TON-02",
+    "title": "No fear, shame or pressure about money",
+    "explanation": "This phrase uses fear to pressure the user, which violates rule TON-02. It creates anxiety about losing money.",
+    "suggestedRewrite": "Avoid late fees",
+    "confidence": 0.9
+   },
+   {
+    "quote": "pay now with Nimbu Pay or face penalties.",
+    "ruleId": "TON-02",
+    "title": "No fear, shame or pressure about money",
+    "explanation": "This phrase uses pressure and implies negative consequences, which violates rule TON-02. It rushes the user and threatens penalties.",
+    "suggestedRewrite": "pay with NimbuPay to avoid penalties.",
+    "confidence": 0.9
+   }
+  ],
+  "keyMessagesCovered": [],
+  "model": "gemini-2.5-flash",
+  "privacy": {
+   "redacted": 1,
+   "excludedFacts": 1
+  }
+ }
+}
