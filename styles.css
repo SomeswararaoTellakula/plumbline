@@ -99,7 +99,7 @@ main:focus, main:focus-visible { outline: none; }
 .sev-high { background: var(--high-soft); color: var(--high); }
 .sev-medium { background: var(--medium-soft); color: var(--medium); }
 .sev-low { background: var(--low-soft); color: var(--low); }
-.tag { font-family: var(--mono); font-size: 12px; background: #F1EFE8; border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; color: var(--ink-2); }
+.tag { font-family: var(--mono); font-size: 12px; background: #F1EFE8; border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; color: var(--ink-2); white-space: nowrap; }
 button.tag { cursor: pointer; }
 button.tag:hover { border-color: var(--ink-2); }
 .counts { display: inline-flex; gap: 4px; }
