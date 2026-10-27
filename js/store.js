@@ -2,6 +2,7 @@
 // so judges never overwrite each other's work and no sign-in is needed.
 import { seedWorkspace, ACTORS } from './seed.js';
 import { locate, hashString } from './lib/text.js';
+import { runDeterministic } from './checks/engine.js';
 
 const KEY = 'plumbline.workspace.v2';
 const PREFS = 'plumbline.prefs.v1';
@@ -123,8 +124,22 @@ function reanchor(d) {
   }
 }
 
-function tidy(text) {
-  return text.replace(/[ \t]{2,}/g, ' ').replace(/ +([,.!?;:])/g, '$1').replace(/([.!?])\1+/g, '$1').replace(/\s+\n/g, '\n').replace(/^\s+|\s+$/g, '');
+/**
+ * Put a replacement in place and tidy only the seams it creates (double spaces, a space before
+ * punctuation, doubled sentence punctuation). Text elsewhere is never touched, so accepting one fix
+ * cannot silently change another part of the draft.
+ */
+function joinEdit(before, replacement, after) {
+  let left = before;
+  let mid = replacement;
+  let right = after;
+  if (/\s$/.test(left) && /^\s/.test(mid)) mid = mid.replace(/^\s+/, '');
+  left += mid;
+  if (/\s$/.test(left) && /^\s/.test(right)) right = right.replace(/^[ \t]+/, '');
+  if (/^[,.!?;:]/.test(right)) left = left.replace(/[ \t]+$/, '');
+  if (/[.!?]$/.test(left) && right[0] === left.at(-1)) right = right.slice(1);
+  if (/^\s*$/.test(left) ) right = right.replace(/^\s+/, '');
+  return (left + right).replace(/^\s+|\s+$/g, '');
 }
 
 export function applyFix(d, f, replacement, edited = false) {
@@ -138,7 +153,7 @@ export function applyFix(d, f, replacement, edited = false) {
     return true;
   }
   if (f.fix?.kind === 'append') {
-    d.body = tidy(`${d.body.trimEnd()} ${replacement}`);
+    d.body = `${d.body.trimEnd()} ${replacement.trim()}`;
     f.status = edited ? 'edited' : 'accepted';
     f.resolution = { by: actor().name, at: new Date().toISOString(), reason: '', text: replacement };
     pushVersion(d, `${edited ? 'Edited fix' : 'Accepted fix'} for ${f.ruleId}`);
@@ -149,10 +164,9 @@ export function applyFix(d, f, replacement, edited = false) {
   }
   const loc = locate(d.body, f.quote, f.start ?? 0);
   if (!loc) return false;
-  let before = d.body.slice(0, loc.start);
-  let after = d.body.slice(loc.end);
-  if (replacement === '' && /^\s/.test(after) && /\s$/.test(before)) after = after.replace(/^\s+/, '');
-  d.body = tidy(before + replacement + after);
+  const before = d.body.slice(0, loc.start);
+  const after = d.body.slice(loc.end);
+  d.body = joinEdit(before, replacement, after);
   f.status = edited ? 'edited' : 'accepted';
   f.resolution = { by: actor().name, at: new Date().toISOString(), reason: '', text: replacement };
   pushVersion(d, `${edited ? 'Edited fix' : 'Accepted fix'} for ${f.ruleId}`);
@@ -211,7 +225,13 @@ export function approve(d, note) {
   d.status = 'approved';
   d.approvedBy = actor().name;
   d.approvedAt = new Date().toISOString();
-  d.factRefs = [...new Set((d.supported || []).map((s) => s.factId).filter(Boolean))];
+  // The facts the approved text relies on: claims supported now, re-checked on the final text,
+  // plus earlier supported claims whose words are still in it.
+  const now = new Date();
+  const today = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const current = runDeterministic(ws, d.body, today).supported || [];
+  const kept = (d.supported || []).filter((s) => s.quote && d.body.includes(s.quote));
+  d.factRefs = [...new Set([...kept, ...current].map((s) => s.factId).filter(Boolean))].sort();
   if (note) d.comments.push({ id: uid('C'), by: actor().name, role: ws.role, text: note, at: new Date().toISOString() });
   log('Approved', d.id, d.factRefs.length ? `Relies on ${d.factRefs.join(', ')}` : '');
   save();
